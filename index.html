@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Pixel World</title>
+  <style>
+    body {
+      text-align: center;
+      font-family: Arial;
+    }
+
+    /* 🔥 OCULTAR TODO CUANDO LOGIN ESTÁ ACTIVO */
+    body.login-active > *:not(#loginScreen) {
+      display: none;
+    }
+
+    #loginScreen {
+      position: fixed;
+      top:0;
+      left:0;
+      width:100%;
+      height:100%;
+      background:white;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      flex-direction:column;
+      z-index: 2000;
+    }
+
+    #canvasContainer {
+      width: 800px;
+      height: 800px;
+      margin: 20px auto;
+      overflow: hidden;
+      border: 2px solid #333;
+      position: relative;
+      cursor: grab;
+    }
+
+    #canvas {
+      display: grid;
+      grid-template-columns: repeat(100, 8px);
+      width: 800px;
+      height: 800px;
+      transform-origin: 0 0;
+    }
+
+    .pixel {
+      width: 8px;
+      height: 8px;
+      box-sizing: border-box;
+      border: 0.5px solid #222;
+      cursor: pointer;
+    }
+
+    #colors button {
+      width: 30px;
+      height: 30px;
+      border: 2px solid #333;
+      margin: 3px;
+      cursor: pointer;
+    }
+
+    /* 🔥 SOCIAL BOX */
+    #socialBox {
+      position: fixed;
+      bottom: 15px;
+      right: 15px;
+      background: rgba(0,0,0,0.8);
+      color: white;
+      padding: 12px 15px;
+      border-radius: 12px;
+      font-size: 14px;
+      text-align: left;
+      z-index: 999;
+    }
+
+    #socialBox a {
+      color: #00ffff;
+      text-decoration: none;
+      display: block;
+      margin-top: 5px;
+    }
+
+    #socialBox a:hover {
+      text-decoration: underline;
+    }
+
+  </style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <h2>Introduce un nombre</h2>
+  <input type="text" id="usernameInput" placeholder="Tu nombre">
+  <button onclick="start()">Aceptar</button>
+</div>
+
+<h2>Pixel World</h2>
+<h3>Cuadros disponibles: <span id="points">50</span></h3>
+
+<div id="colors"></div>
+
+<div id="canvasContainer">
+  <div id="canvas"></div>
+</div>
+
+<!-- 🔥 CAJA SOCIAL -->
+<div id="socialBox">
+  <strong>Sígueme en:</strong>
+  <a href="https://www.tiktok.com/@jyc3029" target="_blank">
+    TikTok: jyc3029
+  </a>
+  <a href="https://www.youtube.com/@JYC-OF" target="_blank">
+    YouTube: JYC-OF
+  </a>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { 
+  getFirestore, 
+  doc, 
+  setDoc, 
+  getDoc,
+  onSnapshot, 
+  collection 
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "TU_API_KEY",
+  authDomain: "pixel-world-26314.firebaseapp.com",
+  projectId: "pixel-world-26314",
+  storageBucket: "pixel-world-26314.firebasestorage.app",
+  messagingSenderId: "406457943875",
+  appId: "1:406457943875:web:5b03e0a9b2a875540cd1f6"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+let currentColor = "black";
+let username = localStorage.getItem("pixelUsername");
+
+/* 🔥 ACTIVAR MODO LOGIN SI NO HAY NOMBRE */
+if(!username){
+  document.body.classList.add("login-active");
+}
+
+let maxPoints = parseInt(localStorage.getItem("pixelMaxPoints")) || 50;
+let points = parseInt(localStorage.getItem("pixelPoints")) || maxPoints;
+let regenStart = parseInt(localStorage.getItem("pixelRegenStart")) || null;
+
+const pointsDisplay = document.getElementById("points");
+
+/* 🔥 MOSTRAR TIMER */
+const timerText = document.createElement("h4");
+timerText.style.color = "red";
+document.body.insertBefore(timerText, document.getElementById("colors"));
+
+pointsDisplay.innerText = points;
+
+if(username){
+  document.getElementById("loginScreen").style.display = "none";
+}
+
+/* 🔥 FUNCIÓN START MODIFICADA */
+window.start = function(){
+  const input = document.getElementById("usernameInput").value;
+  if(input.trim() === "") return alert("Pon un nombre");
+
+  username = input;
+  localStorage.setItem("pixelUsername", username);
+
+  document.body.classList.remove("login-active");
+  document.getElementById("loginScreen").style.display = "none";
+}
+
+function saveData(){
+  localStorage.setItem("pixelPoints", points);
+  localStorage.setItem("pixelMaxPoints", maxPoints);
+}
+
+/* 🔥 SISTEMA DE REGENERACIÓN */
+function startRegen(){
+  regenStart = Date.now();
+  localStorage.setItem("pixelRegenStart", regenStart);
+  updateTimer();
+}
+
+function updateTimer(){
+  if(!regenStart) return;
+
+  const interval = setInterval(()=>{
+    const diff = Date.now() - regenStart;
+    const remaining = 600000 - diff;
+
+    if(remaining <= 0){
+      clearInterval(interval);
+
+      maxPoints += 5;
+      points = maxPoints;
+
+      regenStart = null;
+      localStorage.removeItem("pixelRegenStart");
+      saveData();
+
+      pointsDisplay.innerText = points;
+      timerText.innerText = "¡Puntos regenerados!";
+    } else {
+      const min = Math.floor(remaining / 60000);
+      const sec = Math.floor((remaining % 60000)/1000);
+      timerText.innerText = "Recargando en: " + min + "m " + sec + "s";
+    }
+  },1000);
+}
+
+if(points <= 0){
+  if(regenStart){
+    updateTimer();
+  } else {
+    startRegen();
+  }
+}
+
+const colors = [
+"#000000","#7f7f7f","#d9d9d9","#ffffff",
+"#ff0000","#990000","#ff7f7f",
+"#00ff00","#006400","#7fff7f",
+"#0000ff","#000080","#7f7fff",
+"#ffff00","#999900","#ffff7f",
+"#ff00ff","#800080","#ff7fff",
+"#00ffff","#008b8b","#7fffff",
+"#8b4513","#deb887","#a0522d",
+"#ffa500","#ff8c00","#ff4500"
+];
+
+const colorsDiv = document.getElementById("colors");
+colorsDiv.innerHTML = "";
+
+colors.forEach(color=>{
+  const btn = document.createElement("button");
+  btn.style.background = color;
+  btn.onclick = ()=> currentColor = color;
+  colorsDiv.appendChild(btn);
+});
+
+const canvas = document.getElementById("canvas");
+const container = document.getElementById("canvasContainer");
+
+for (let i = 0; i < 10000; i++) {
+  const pixel = document.createElement("div");
+  pixel.className = "pixel";
+  pixel.id = "pixel-" + i;
+
+  pixel.addEventListener("click", async () => {
+    if(!username) return;
+    if(points <= 0) return alert("Sin puntos");
+
+    await setDoc(doc(db, "pixels", i.toString()), {
+      color: currentColor,
+      user: username,
+      time: Date.now()
+    });
+
+    points--;
+    pointsDisplay.innerText = points;
+    saveData();
+
+    if(points === 0){
+      startRegen();
+    }
+  });
+
+  pixel.addEventListener("contextmenu", async (e)=>{
+    e.preventDefault();
+    const snap = await getDoc(doc(db,"pixels",i.toString()));
+    if(snap.exists()){
+      alert("Pintado por: " + snap.data().user);
+    } else {
+      alert("Nadie ha pintado este pixel");
+    }
+  });
+
+  canvas.appendChild(pixel);
+}
+
+onSnapshot(collection(db, "pixels"), (snapshot) => {
+  snapshot.docChanges().forEach((change) => {
+    const id = change.doc.id;
+    const data = change.doc.data();
+    const pixel = document.getElementById("pixel-" + id);
+    if(pixel){
+      pixel.style.background = data.color;
+    }
+  });
+});
+
+let scale = 1;
+let originX = 0;
+let originY = 0;
+
+container.addEventListener("wheel", (e)=>{
+  e.preventDefault();
+
+  const rect = container.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+
+  const zoom = e.deltaY < 0 ? 1.1 : 0.9;
+  const newScale = scale * zoom;
+
+  if(newScale < 1){
+    scale = 1;
+    originX = 0;
+    originY = 0;
+    canvas.style.transform = `translate(0px, 0px) scale(1)`;
+    return;
+  }
+
+  if(newScale > 6) return;
+
+  originX = mouseX - (mouseX - originX) * zoom;
+  originY = mouseY - (mouseY - originY) * zoom;
+
+  scale = newScale;
+  canvas.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`;
+});
+</script>
+
+</body>
+</html>
